@@ -28,10 +28,10 @@ def open_dataset(filename):
     df2=df1[df1[1].isin([100])]
 
     #1000x100 matrix로 변환
-    value = df2.values
-    m=value[:1000,1:]
-    value=(value+10)/20
-    matrix = value[:1000, 1:]
+    #value = df2.values
+    #m=value[:1000,1:]
+    #value=(value+10)/20
+    matrix = df2.values
 
     return matrix
 
@@ -132,13 +132,15 @@ def EUC(a):
 
 
 #Assignment3
-def basic_baseline(mat,sim,k):
-    predicted_rating=np.array([[0.0 for col in range(100)] for row in range(1000)])#예측 matrix
-    bui=np.array([[0.0 for col in range(100)] for row in range(1000)]) #각 user의 bui matrix
+def basic_baseline(mat, sim, k):
+    NumUsers=np.size(mat,axis=0) #1000
+    NumItems=np.size(mat,axis=1) #100
+    predicted_rating=np.array([[0.0 for col in range(NumItems)] for row in range(NumUsers)])#예측 matrix
+    bui=np.array([[0.0 for col in range(NumItems)] for row in range(NumUsers)]) #각 user의 bui matrix
     
     u_mean=np.nanmean(np.where(mat!=0,mat,np.nan),axis=1) #user평균
     i_mean=np.nanmean(np.where(mat!=0,mat,np.nan),axis=0) #item평균
-    mean=sum(sum(mat))/100000 #모든 평균
+    mean=sum(sum(mat))/NumUsers*NumItems #모든 평균
     
     mat=np.array(mat,dtype=np.float64)
     
@@ -150,8 +152,8 @@ def basic_baseline(mat,sim,k):
     k_neighbors=np.argsort(-Sim)
     k_neighbors=np.delete(k_neighbors,np.s_[k+1:],1) #상위 k명을 추출함(자신도 포함되어있기 때문에 +1을 해줌)
     
-    NumUsers=np.size(mat,axis=0) #1000
-    NumItems=np.size(mat,axis=1) #100
+    #NumUsers=np.size(mat,axis=0) #1000
+    #NumItems=np.size(mat,axis=1) #100
     
     bi=i_mean-mean #bi구하기 
     bu=u_mean-mean #bu구하기
@@ -308,7 +310,7 @@ def apply_to_surprise(df,form):
 #Assignment5
 def precision_recall_F1(df):
     #precision at k
-    def precision_recall_at_k(predictions, k=10, threshold=3.5):
+    def precision_recall_at_k(predictions, k = 10, threshold = 3.5):
         '''Return precision and recall at k metrics for each user.'''
 
         # First map the predictions to each user.
@@ -353,7 +355,7 @@ def precision_recall_F1(df):
     for trainset,testset in kf.split(data):
         algo.fit(trainset)
         predictions=algo.test(testset)
-        precisions, recalls=precision_recall_at_k(predictions,k=5,threshold=0.7)
+        precisions, recalls=precision_recall_at_k(predictions,k=5,threshold=3.5)
     
         P=sum(prec for prec in precisions.values())/len(precisions)
         R=sum(rec for rec in recalls.values())/len(recalls)
@@ -457,31 +459,33 @@ def NDCG(df,form):
 #Final_Tern
 #Singularity
 def singularity(a):
-    num_u=len(a)
-    num_i=len(a[0])
+    num_u=np.size(a, axis=0)
+    num_i=np.size(a, axis=1)
     
     Sp=np.zeros([num_i]) ; Sn=np.zeros([num_i])
     Sp=1-(sum(a>0.5)/num_u)
-    Sn=1-(sum(a<=0.5)/num_u)
+    #Sn=1-(sum(a<=0.5)/num_u)
+    Sn=1-Sp  #Sn+Sp=1
 
     Sim=np.zeros([num_u,num_u])
     
     for u in range(num_u):
         for v in range(u,num_u):
             AA=np.zeros([num_i]) ; BB=np.zeros([num_i]) ; CC=np.zeros([num_i])
-            U=10
-
-            A=len(np.where((a[u,:]>0.5) & (a[v,:]>0.5))[0])
+            
             index=np.where((a[u,:]>0.5) & (a[v,:]>0.5))
+            A=np.size(index, axis=1)
             AA[index]=AA[index]+(1-(a[u,index]-a[v,index])**2)*(Sp[index]**2)
             #print(AA[index])
             
-            B=len(np.where((a[u,:]<=0.5) & (a[v,:]<=0.5))[0])
+            #B=len(np.where((a[u,:]<=0.5) & (a[v,:]<=0.5))[0])
             index=np.where((a[u,:]<=0.5) & (a[v,:]<=0.5))
+            B=np.size(index, axis=1)
             BB[index]=BB[index]+(1-(a[u,index]-a[v,index])**2)*(Sn[index]**2)
             
-            C=len(np.where(((a[u,:]>0.5) & (a[v,:]<=0.5)) | ((a[u,:]<=0.5) & (a[v,:]>0.5)))[0])
+            #C=len(np.where(((a[u,:]>0.5) & (a[v,:]<=0.5)) | ((a[u,:]<=0.5) & (a[v,:]>0.5)))[0])
             index=np.where(((a[u,:]>0.5) & (a[v,:]<=0.5)) | ((a[u,:]<=0.5) & (a[v,:]>0.5)))
+            C=np.size(index, axis=1)
             CC[index]=CC[index]+(1-(a[u,index]-a[v,index])**2)*(Sp[index]*Sn[index])
             
             if A==0 or B==0 or C==0:
@@ -506,15 +510,15 @@ def Agreement(a,b):
     return agreement
 
 #Proximity
-def Proximity(a,u,v):
-    proximity=np.zeros([len(a[0])])
+def Proximity(a,u,v, num_i):
+    proximity=np.zeros([num_i])
     c=Agreement(a[u,:], a[v,:]) #True->1  /  False->2
     proximity=((2*(Rmax-Rmin)+1)-(c*np.abs(a[u,:]-a[v,:])))**2 
     return proximity
 
 #impact
-def Impact(a,u,v):
-    impact=np.zeros([len(a[0])])
+def Impact(a,u,v, num_i):
+    impact=np.zeros([num_i])
     agreement=Agreement(a[u,:],a[v,:])
     
     impact=np.where(agreement==1,(np.abs(a[u,:]-Rm)+1)*(np.abs(a[v,:]-Rm)+1),impact)
@@ -523,25 +527,28 @@ def Impact(a,u,v):
     return impact
 
 #Popularity
-def Popularity(a,u,v,avg):
-    popularity=np.zeros([len(a[0])])
+def Popularity(a,u,v,avg, num_i):
+    popularity=np.zeros([num_i])
     popularity=np.where(((a[u,:]>avg) & (a[v,:]>avg)) | ((a[u,:]<avg) & (a[v,:]<avg)),1+((a[u,:]+a[v,:])/2-avg)**2,popularity)
     popularity=np.where(((a[u,:]>avg) & (a[v,:]<avg)) | ((a[u,:]<avg) & (a[v,:]>avg)),1,popularity)
     return popularity
 
 #PIP
 def PIP(a):
-    n=len(a)
-    PIP=np.zeros([n,n])
+    num_u=np.size(a, axis = 0)
+    num_i=np.size(a, axis = 1)
+    
+    PIP=np.zeros([num_u, num_u])
     
     avg=[] #아이템 평점의 평균을 구하는 시간을 줄이기 새로운 리스트를 할당하여 미리 구해놓은 뒤 활용
     for i in range (len(a[0])):
         avg.append(np.mean(a[:,i]))
+   
         
-    for u in range(n):
-        for v in range(u, n):
-            tmp=0.0
-            tmp = Proximity(a,u,v) * Impact(a,u,v) * Popularity(a,u,v,avg)
+    for u in range(num_u):
+        for v in range(u, num_u):
+            tmp = 0.0
+            tmp = Proximity(a,u,v, num_i) * Impact(a,u,v, num_i) * Popularity(a,u,v,avg, num_i)
             
             PIP[u,v]=sum(tmp)
             PIP[v,u]=PIP[u,v]
